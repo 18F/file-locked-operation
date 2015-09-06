@@ -1,0 +1,33 @@
+{
+  "name": "file-locked-operation",
+  "version": "0.0.0",
+  "description": "Locks individual operations via the lockfile module",
+  "main": "index.js",
+  "scripts": {
+    "test": "gulp test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/18F/file-locked-operation.git"
+  },
+  "keywords": [
+    "lockfile"
+  ],
+  "author": "Mike Bland <michael.bland@gsa.gov> (https://18f.gsa.gov/)",
+  "license": "CC0-1.0",
+  "bugs": {
+    "url": "https://github.com/18F/file-locked-operation/issues"
+  },
+  "homepage": "https://github.com/18F/file-locked-operation#readme",
+  "dependencies": {
+    "lockfile": "^1.0.1"
+  },
+  "devDependencies": {
+    "chai": "^3.2.0",
+    "gulp": "^3.9.0",
+    "gulp-jshint": "^1.11.2",
+    "gulp-mocha": "^2.1.3",
+    "jshint": "^2.8.0",
+    "mocha": "^2.3.0"
+  }
+}
