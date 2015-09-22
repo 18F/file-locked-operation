@@ -76,8 +76,8 @@ describe('FileLockedOperation', function() {
 
       // checkCallsDoNotOverlap will execute the assertions after all of the
       // Promises have been resolved.
-      var checkCallsDoNotOverlap = checkN(3, done, function(err) {
-        expect(err).to.be.undefined;
+      var checkCallsDoNotOverlap = checkN(3, done, function(errors) {
+        expect(errors).to.be.empty;
         expect(ops.slice(0, 3)).to.eql(ops.slice(3, 6));
         expect(ops.slice(3, 6)).to.eql(ops.slice(6, 9));
       });
@@ -85,6 +85,33 @@ describe('FileLockedOperation', function() {
       combinedOps(checkCallsDoNotOverlap);
       combinedOps(checkCallsDoNotOverlap);
       combinedOps(checkCallsDoNotOverlap);
+    });
+
+    it('should abort incoming operations if the lock wait expires',
+      function(done) {
+      // Set the lock wait to expire right away.
+      var lockOpts = {wait: 0, poll: 100};
+      lock = new lockedOp.FileLockedOperation(lockFilePath, lockOpts);
+
+      var ops = [];
+      var initiateOperation = function(operationDone) {
+        lock.doLockedOperation(function(lockedOperationDone) {
+          new Promise(function(resolve) { ops.push('doing op'); resolve(); })
+            .then(lockedOperationDone, lockedOperationDone);
+        }, operationDone);
+      };
+
+      var checkOnlyFirstOperationSucceeds = checkN(3, done, function(errors) {
+        var expectedError = new Error(
+          'FileLockedOperation.doLockedOperation: EEXIST, ' +
+          'open \'' + lockFilePath + '\'');
+        expect(errors).to.eql([expectedError, expectedError]);
+        expect(ops).to.eql(['doing op']);
+      });
+
+      initiateOperation(checkOnlyFirstOperationSucceeds);
+      initiateOperation(checkOnlyFirstOperationSucceeds);
+      initiateOperation(checkOnlyFirstOperationSucceeds);
     });
   });
 });
