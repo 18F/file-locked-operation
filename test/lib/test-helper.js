@@ -8,5 +8,9 @@ exports.check = function(done, cb) {
 };
 
 exports.checkN = function(n, done, cb) {
-  return function(err) { if (--n === 0) { exports.check(done, cb)(err); } };
+  var errors = [];
+  return function(err) {
+    if (err) { errors.push(err); }
+    if (--n === 0) { exports.check(done, cb)(errors); }
+  };
 };
