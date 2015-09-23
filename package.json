@@ -1,6 +1,6 @@
 {
   "name": "file-locked-operation",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Locks individual operations via the lockfile module",
   "main": "index.js",
   "scripts": {
