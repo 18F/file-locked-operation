@@ -45,9 +45,7 @@ describe('FileLockedOperation', function() {
         };
 
         var checkErrorMsg = check(restorePermissions, function(err) {
-          expect(err.message).to.equal(
-            'FileLockedOperation.doLockedOperation: EACCES, open \'' +
-            lockFilePath + '\'');
+          expect(err.message).contains(lockFilePath);
         });
 
         lock.doLockedOperation(function() { }, checkErrorMsg);
