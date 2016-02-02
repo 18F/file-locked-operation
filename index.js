@@ -11,24 +11,48 @@ function FileLockedOperation(lockFilePath, lockOpts) {
 }
 
 FileLockedOperation.prototype.doLockedOperation = function(operation, done) {
-  var that = this;
-  lockfile.lock(this.lockFilePath, this.opts, function(err) {
-    if (err !== undefined) {
-      return done(new Error('FileLockedOperation.doLockedOperation: ' +
-        err.message));
-    }
-    operation(function(opError) { that._releaseLock(opError, done); });
-  });
+  var lockedOp = this;
+
+  return new Promise(function(resolve, reject) {
+      lockfile.lock(lockedOp.lockFilePath, lockedOp.opts, function(err) {
+        if (err) {
+          return reject(new Error('FileLockedOperation.doLockedOperation: ' +
+            err.message));
+        }
+        lockedOp.lockSet = true;
+        resolve();
+      });
+    })
+    .then(function() {
+      return new Promise(function(resolve, reject) {
+        try {
+          return resolve(operation());
+        } catch (operationError) {
+          return reject(operationError);
+        }
+      });
+    })
+    .then(function(result) {
+      return releaseLock(null, lockedOp, result);
+    })
+    .catch(function(err) {
+      return releaseLock(err, lockedOp);
+    })
+    .then(done, done);
 };
 
-FileLockedOperation.prototype._releaseLock = function(operationError, done) {
-  lockfile.unlock(this.lockFilePath, function(err) {
-    if (err !== undefined) {
-      var opErrorMsg = (operationError !== undefined) ?
-        operationError.message + '\n' : '';
-      return done(new Error(opErrorMsg + 'FileLockedOperation._releaseLock: ' +
-        err.message));
+function releaseLock(opError, lockedOp, result) {
+  return new Promise(function(resolve, reject) {
+    if (!lockedOp.lockSet) {
+      return opError ? reject(opError) : resolve(result);
     }
-    done(operationError);
+    lockfile.unlock(lockedOp.lockFilePath, function(err) {
+      if (err) {
+        return reject(new Error('FileLockedOperation._releaseLock: ' +
+          err.message));
+      }
+      delete lockedOp.lockSet;
+      return opError ? reject(opError) : resolve(result);
+    });
   });
-};
+}
