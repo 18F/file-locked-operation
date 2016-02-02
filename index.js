@@ -10,10 +10,9 @@ function FileLockedOperation(lockFilePath, lockOpts) {
   this.opts = lockOpts || {wait: 1000, poll: 100};
 }
 
-FileLockedOperation.prototype.doLockedOperation = function(operation, done) {
+FileLockedOperation.prototype.doLockedOperation = function(operation) {
   return getLock(this.lockFilePath, this.opts)
-    .then(doOperation(this.lockFilePath, operation))
-    .then(done, done);
+    .then(doOperation(this.lockFilePath, operation));
 };
 
 function getLock(lockFilePath, options) {

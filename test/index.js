@@ -3,14 +3,14 @@
 /* jshint mocha: true */
 'use strict';
 
+var FileLockedOperation = require('../index.js');
 var path = require('path');
 var fs = require('fs');
-var FileLockedOperation = require('../index.js');
-var expect = require('chai').expect;
-var testHelper = require('./lib/test-helper.js');
+var chai = require('chai');
+var chaiAsPromised = require('chai-as-promised');
 
-var check = testHelper.check;
-var checkN = testHelper.checkN;
+chai.should();
+chai.use(chaiAsPromised);
 
 describe('FileLockedOperation', function() {
   describe('doLockedOperation', function() {
@@ -38,95 +38,111 @@ describe('FileLockedOperation', function() {
       fs.rmdir(lockFileDir, done);
     });
 
-    it('should fail if the lock file cannot be created', function(done) {
-      fs.chmod(lockFileDir, '400', function() {
-        var restorePermissions = function(err) {
-          fs.chmod(lockFileDir, '700', function() { done(err); });
-        };
+    it('should fail if the lock file cannot be created', function() {
+      var changePermissions,
+          restorePermissions;
 
-        var checkErrorMsg = check(restorePermissions, function(err) {
-          expect(err.message).contains(lockFilePath);
+      changePermissions = function() {
+        return new Promise(function(resolve, reject) {
+          fs.chmod(lockFileDir, '400', function(err) {
+            if (err) {
+              return reject(err);
+            }
+            resolve();
+          });
         });
+      };
 
-        lock.doLockedOperation(function() { }, checkErrorMsg);
-      });
+      restorePermissions = function(operationError) {
+        return new Promise(function(resolve, reject) {
+          fs.chmod(lockFileDir, '700', function(err) {
+            if (err) {
+              return reject(err);
+            }
+            operationError ? reject(operationError) : resolve();
+          });
+        });
+      };
+
+      return changePermissions()
+        .then(function() {
+          return lock.doLockedOperation(function() { });
+        })
+        .then(restorePermissions, restorePermissions)
+        .should.be.rejectedWith(Error, lockFilePath);
     });
 
     it('should prevent multiple operations from overlapping', function(done) {
       // We generate Promise objects in order to create a series of
       // interleaved asynchronous operations. The trick is to wrap the
       // generator() calls in function literals passed to Promise.then().
-      var ops = [];
-      var generator = function(op) {
-        return new Promise(function(resolve) { ops.push(op); resolve(); });
+      var ops = [],
+          generator,
+          combinedOps;
+
+      generator = function(op) {
+        return new Promise(function(resolve) {
+          ops.push(op);
+          resolve();
+        });
       };
 
-      var combinedOps = function(done) {
+      combinedOps = function() {
         // To make this test fail (because the operations are interleaved),
-        // then delete/comment out the lock.doLockedOperation() call.
-        lock.doLockedOperation(function(done) {
+        // delete/comment out the lock.doLockedOperation() call.
+        return lock.doLockedOperation(function() {
           generator('op1')
             .then(function() { return generator('op2'); })
-            .then(function() { return generator('op3'); })
-            .then(done, done);
-        }, done);
+            .then(function() { return generator('op3'); });
+        });
       };
 
-      // checkCallsDoNotOverlap will execute the assertions after all of the
-      // Promises have been resolved.
-      var checkCallsDoNotOverlap = checkN(3, done, function(errors) {
-        expect(errors).to.be.empty;
-        expect(ops.slice(0, 3)).to.eql(ops.slice(3, 6));
-        expect(ops.slice(3, 6)).to.eql(ops.slice(6, 9));
-      });
-
-      combinedOps(checkCallsDoNotOverlap);
-      combinedOps(checkCallsDoNotOverlap);
-      combinedOps(checkCallsDoNotOverlap);
+      Promise.all([combinedOps(), combinedOps(), combinedOps()])
+        .should.be.fulfilled.then(function() {
+          ops.slice(0, 3).should.eql(ops.slice(3, 6));
+          ops.slice(3, 6).should.eql(ops.slice(6, 9));
+        })
+        .should.notify(done);
     });
 
-    it('should abort incoming operations if the lock wait expires',
-      function(done) {
+    it('should abort incoming operations if the lock wait expires', function() {
       // Set the lock wait to expire right away.
-      var lockOpts = {wait: 0, poll: 100};
+      var lockOpts = {wait: 0, poll: 100},
+          initiateOperation,
+          results = [];
+
       lock = new FileLockedOperation(lockFilePath, lockOpts);
 
-      var ops = [];
-      var initiateOperation = function(operationDone) {
-        lock.doLockedOperation(function(lockedOperationDone) {
-          new Promise(function(resolve) { ops.push('doing op'); resolve(); })
-            .then(lockedOperationDone, lockedOperationDone);
-        }, operationDone);
+      initiateOperation = function() {
+        // To make this test fail (because the operations try to grab the lock
+        // right away), delete/comment out the lock.doLockedOperation() call.
+        return lock.doLockedOperation(function() {
+          return Promise.resolve('doing op');
+        });
       };
 
-      var checkOnlyFirstOperationSucceeds = checkN(3, done, function(errors) {
-        var expectedError = new Error(
-          'FileLockedOperation.doLockedOperation: EEXIST, ' +
-          'open \'' + lockFilePath + '\'');
-        expect(errors).to.eql([expectedError, expectedError]);
-        expect(ops).to.eql(['doing op']);
-      });
+      results.push(initiateOperation());
+      results.push(initiateOperation());
+      results.push(initiateOperation());
 
-      initiateOperation(checkOnlyFirstOperationSucceeds);
-      initiateOperation(checkOnlyFirstOperationSucceeds);
-      initiateOperation(checkOnlyFirstOperationSucceeds);
+      return Promise.all([
+        results[0].should.become('doing op'),
+        results[1].should.be.rejectedWith(lockFilePath),
+        results[2].should.be.rejectedWith(lockFilePath)
+      ]);
     });
 
-    it('should release the lock if the operation throws', function(done) {
-      var operation;
-
-      operation = function() {
-        throw new Error('forced error');
-      };
-      lock.doLockedOperation(operation, function(err) {
-        try {
-          expect(err.toString()).contains('forced error');
-        } catch (e) {
-          return done(e);
-        }
-        // Now ensure we can still grab the lock and do something.
-        lock.doLockedOperation(function() { }, done);
-      });
+    it('should release the lock if the operation throws', function() {
+      return lock.doLockedOperation(
+        function() {
+          throw new Error('forced error');
+        })
+        .should.be.rejectedWith(Error, 'forced error')
+        .then(function() {
+          // Now ensure we can still grab the lock and do something.
+          return lock.doLockedOperation(function() { });
+        })
+        .should.be.fulfilled;
     });
   });
 });
