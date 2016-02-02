@@ -4,7 +4,8 @@
   "description": "Locks individual operations via the lockfile module",
   "main": "index.js",
   "scripts": {
-    "test": "gulp test"
+    "test": "gulp test",
+    "lint": "gulp lint"
   },
   "repository": {
     "type": "git",
