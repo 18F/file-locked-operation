@@ -111,5 +111,22 @@ describe('FileLockedOperation', function() {
       initiateOperation(checkOnlyFirstOperationSucceeds);
       initiateOperation(checkOnlyFirstOperationSucceeds);
     });
+
+    it('should release the lock if the operation throws', function(done) {
+      var operation;
+
+      operation = function() {
+        throw new Error('forced error');
+      };
+      lock.doLockedOperation(operation, function(err) {
+        try {
+          expect(err.toString()).contains('forced error');
+        } catch (e) {
+          return done(e);
+        }
+        // Now ensure we can still grab the lock and do something.
+        lock.doLockedOperation(function() { }, done);
+      });
+    });
   });
 });
