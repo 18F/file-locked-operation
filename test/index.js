@@ -99,13 +99,14 @@ describe('FileLockedOperation', function() {
     });
 
     it('should abort incoming operations if the lock wait expires', function() {
-      var initiateOperation,
+      var localLock = new FileLockedOperation(lockFilePath),
+          initiateOperation,
           results = [];
 
       initiateOperation = function() {
         // To make this test fail (because the operations try to grab the lock
         // right away), delete/comment out the lock.doLockedOperation() call.
-        return lock.doLockedOperation(function() {
+        return localLock.doLockedOperation(function() {
           return Promise.resolve('doing op');
         });
       };
@@ -116,7 +117,7 @@ describe('FileLockedOperation', function() {
       results.push(initiateOperation());
 
       // Now set the lock wait to expire right away.
-      lock.opts = {wait: 0, poll: 100};
+      localLock.opts = {wait: 0, poll: 100};
       results.push(initiateOperation());
       results.push(initiateOperation());
 
