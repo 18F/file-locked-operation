@@ -29,19 +29,26 @@ function getLock(lockFilePath, options) {
 function doOperation(lockFilePath, operation) {
   return function() {
     return new Promise(function(resolve, reject) {
-      var result;
+      var result,
+          opError;
 
       try {
         result = operation();
+      } catch (err) {
+        opError = err;
       } finally {
-        lockfile.unlock(lockFilePath, function(err) {
-          if (err) {
-            return reject(new Error('FileLockedOperation._releaseLock: ' +
-              err.message));
-          }
-          return resolve(result);
-        });
+        releaseLock(lockFilePath, opError, result, resolve, reject);
       }
     });
   };
+}
+
+function releaseLock(lockFilePath, opError, result, resolve, reject) {
+  lockfile.unlock(lockFilePath, function(err) {
+    if (err) {
+      return reject(new Error('FileLockedOperation._releaseLock: ' +
+        err.message));
+    }
+    opError ? reject(opError) : resolve(result);
+  });
 }
