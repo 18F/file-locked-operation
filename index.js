@@ -11,48 +11,39 @@ function FileLockedOperation(lockFilePath, lockOpts) {
 }
 
 FileLockedOperation.prototype.doLockedOperation = function(operation, done) {
-  var lockedOp = this;
-
-  return new Promise(function(resolve, reject) {
-      lockfile.lock(lockedOp.lockFilePath, lockedOp.opts, function(err) {
-        if (err) {
-          return reject(new Error('FileLockedOperation.doLockedOperation: ' +
-            err.message));
-        }
-        lockedOp.lockSet = true;
-        resolve();
-      });
-    })
-    .then(function() {
-      return new Promise(function(resolve, reject) {
-        try {
-          return resolve(operation());
-        } catch (operationError) {
-          return reject(operationError);
-        }
-      });
-    })
-    .then(function(result) {
-      return releaseLock(null, lockedOp, result);
-    })
-    .catch(function(err) {
-      return releaseLock(err, lockedOp);
-    })
+  return getLock(this.lockFilePath, this.opts)
+    .then(doOperation(this.lockFilePath, operation))
     .then(done, done);
 };
 
-function releaseLock(opError, lockedOp, result) {
+function getLock(lockFilePath, options) {
   return new Promise(function(resolve, reject) {
-    if (!lockedOp.lockSet) {
-      return opError ? reject(opError) : resolve(result);
-    }
-    lockfile.unlock(lockedOp.lockFilePath, function(err) {
+    lockfile.lock(lockFilePath, options, function(err) {
       if (err) {
-        return reject(new Error('FileLockedOperation._releaseLock: ' +
+        return reject(new Error('FileLockedOperation.doLockedOperation: ' +
           err.message));
       }
-      delete lockedOp.lockSet;
-      return opError ? reject(opError) : resolve(result);
+      resolve();
     });
   });
+}
+
+function doOperation(lockFilePath, operation) {
+  return function() {
+    return new Promise(function(resolve, reject) {
+      var result;
+
+      try {
+        result = operation();
+      } finally {
+        lockfile.unlock(lockFilePath, function(err) {
+          if (err) {
+            return reject(new Error('FileLockedOperation._releaseLock: ' +
+              err.message));
+          }
+          return resolve(result);
+        });
+      }
+    });
+  };
 }
