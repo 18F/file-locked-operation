@@ -3,6 +3,8 @@
 var FileLockedOperation = require('../index.js');
 var path = require('path');
 var fs = require('fs');
+var temp = require('temp');
+var scriptName = require('../package.json').name;
 var chai = require('chai');
 var chaiAsPromised = require('chai-as-promised');
 
@@ -13,21 +15,15 @@ describe('FileLockedOperation', function() {
   describe('doLockedOperation', function() {
     var lockFileDir, lockFilePath, lock;
 
-    before(function() {
-      lockFileDir = path.resolve(__dirname, 'lock_file_test');
-      lockFilePath = path.resolve(lockFileDir, '.test-lock');
-      lock = new FileLockedOperation(lockFilePath);
-    });
-
-    beforeEach(function(done) {
-      fs.exists(lockFileDir, function(exists) {
-        (exists ? fs.chmod : fs.mkdir)(lockFileDir, '0700', done);
-      });
-    });
-
-    afterEach(function(done) {
-      fs.exists(lockFilePath, function(exists) {
-        if (exists) { fs.unlink(lockFilePath, done); } else { done(); }
+    before(function(done) {
+      temp.mkdir(scriptName + '-test-files-', function(err, tempDir) {
+        if (err) {
+          return done(err);
+        }
+        lockFileDir = tempDir;
+        lockFilePath = path.resolve(lockFileDir, '.test-lock');
+        lock = new FileLockedOperation(lockFilePath);
+        done();
       });
     });
 
@@ -103,12 +99,8 @@ describe('FileLockedOperation', function() {
     });
 
     it('should abort incoming operations if the lock wait expires', function() {
-      // Set the lock wait to expire right away.
-      var lockOpts = {wait: 0, poll: 100},
-          initiateOperation,
+      var initiateOperation,
           results = [];
-
-      lock = new FileLockedOperation(lockFilePath, lockOpts);
 
       initiateOperation = function() {
         // To make this test fail (because the operations try to grab the lock
@@ -118,7 +110,13 @@ describe('FileLockedOperation', function() {
         });
       };
 
+      // The first operation will wait for the lock, in case cleanup from
+      // previous tests hasn't completed. (Don't know why this isn't
+      // guaranteed by the fixture, but oh well.)
       results.push(initiateOperation());
+
+      // Now set the lock wait to expire right away.
+      lock.opts = {wait: 0, poll: 100};
       results.push(initiateOperation());
       results.push(initiateOperation());
 
