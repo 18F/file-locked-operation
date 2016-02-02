@@ -2,7 +2,8 @@
 'use strict';
 
 var lockfile = require('lockfile');
-var exports = module.exports = {};
+
+module.exports = FileLockedOperation;
 
 function FileLockedOperation(lockFilePath, lockOpts) {
   this.lockFilePath = lockFilePath;
@@ -31,5 +32,3 @@ FileLockedOperation.prototype._releaseLock = function(operationError, done) {
     done(operationError);
   });
 };
-
-exports.FileLockedOperation = FileLockedOperation;

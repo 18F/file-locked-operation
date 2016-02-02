@@ -5,7 +5,7 @@
 
 var path = require('path');
 var fs = require('fs');
-var lockedOp = require(path.resolve(path.dirname(__dirname), 'index.js'));
+var FileLockedOperation = require('../index.js');
 var expect = require('chai').expect;
 var testHelper = require('./lib/test-helper.js');
 
@@ -19,7 +19,7 @@ describe('FileLockedOperation', function() {
     before(function() {
       lockFileDir = path.resolve(__dirname, 'lock_file_test');
       lockFilePath = path.resolve(lockFileDir, '.test-lock');
-      lock = new lockedOp.FileLockedOperation(lockFilePath);
+      lock = new FileLockedOperation(lockFilePath);
     });
 
     beforeEach(function(done) {
@@ -91,7 +91,7 @@ describe('FileLockedOperation', function() {
       function(done) {
       // Set the lock wait to expire right away.
       var lockOpts = {wait: 0, poll: 100};
-      lock = new lockedOp.FileLockedOperation(lockFilePath, lockOpts);
+      lock = new FileLockedOperation(lockFilePath, lockOpts);
 
       var ops = [];
       var initiateOperation = function(operationDone) {
