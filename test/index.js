@@ -65,7 +65,7 @@ describe('FileLockedOperation', function() {
         .should.be.rejectedWith(Error, lockFilePath);
     });
 
-    it('should prevent multiple operations from overlapping', function(done) {
+    it('should prevent multiple operations from overlapping', function() {
       // We generate Promise objects in order to create a series of
       // interleaved asynchronous operations. The trick is to wrap the
       // generator() calls in function literals passed to Promise.then().
@@ -90,12 +90,11 @@ describe('FileLockedOperation', function() {
         });
       };
 
-      Promise.all([combinedOps(), combinedOps(), combinedOps()])
+      return Promise.all([combinedOps(), combinedOps(), combinedOps()])
         .should.be.fulfilled.then(function() {
           ops.slice(0, 3).should.eql(ops.slice(3, 6));
           ops.slice(3, 6).should.eql(ops.slice(6, 9));
-        })
-        .should.notify(done);
+        });
     });
 
     it('should abort incoming operations if the lock wait expires', function() {
